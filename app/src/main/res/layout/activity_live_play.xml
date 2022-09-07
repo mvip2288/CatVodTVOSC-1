@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout android:id="@+id/live_root" xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <xyz.doikki.videoplayer.player.VideoView
+        android:id="@+id/mVideoView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <LinearLayout
+        android:id="@+id/tvLeftChannnelListLayout"
+        android:layout_width="441mm"
+        android:layout_height="match_parent"
+        android:layout_marginStart="-441mm"
+        android:layout_marginLeft="-441mm"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:visibility="visible">
+
+        <com.owen.tvrecyclerview.widget.TvRecyclerView
+            android:id="@+id/mGroupGridView"
+            android:layout_width="180mm"
+            android:layout_height="match_parent"
+            android:background="#DDFFFFFF"
+            android:paddingLeft="5mm"
+            android:paddingTop="10mm"
+            android:paddingRight="5mm"
+            android:paddingBottom="10mm"
+            android:visibility="visible"
+            app:tv_selectedItemIsCentered="true"
+            app:tv_verticalSpacingWithMargins="10mm" />
+
+        <View
+            android:layout_width="1mm"
+            android:layout_height="match_parent"
+            android:layout_gravity="center_horizontal"
+            android:background="@color/color_FFFFFF" />
+
+        <com.owen.tvrecyclerview.widget.TvRecyclerView
+            android:id="@+id/mChannelGridView"
+            android:layout_width="240mm"
+            android:layout_height="match_parent"
+            android:background="#DDFFFFFF"
+            android:paddingLeft="5mm"
+            android:paddingTop="10mm"
+            android:paddingRight="5mm"
+            android:paddingBottom="10mm"
+            android:visibility="visible"
+            app:tv_selectedItemIsCentered="true"
+            app:tv_verticalSpacingWithMargins="10mm" />
+
+        <FrameLayout
+            android:layout_width="@dimen/vs_20"
+            android:layout_height="match_parent"
+            android:background="@drawable/box_controller_left_bg">
+
+        </FrameLayout>
+
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/tvRightSettingLayout"
+        android:layout_width="381mm"
+        android:layout_height="match_parent"
+        android:layout_gravity="right"
+        android:layout_marginEnd="-381mm"
+        android:layout_marginRight="-381mm"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:visibility="visible">
+
+        <FrameLayout
+            android:layout_width="@dimen/vs_20"
+            android:layout_height="match_parent"
+            android:background="@drawable/box_controller_right_bg">
+
+        </FrameLayout>
+
+        <com.owen.tvrecyclerview.widget.TvRecyclerView
+            android:id="@+id/mSettingItemView"
+            android:layout_width="180mm"
+            android:layout_height="match_parent"
+            android:background="@color/color_CCFFFFFF"
+            android:gravity="center"
+            android:paddingLeft="5mm"
+            android:paddingTop="10mm"
+            android:paddingRight="5mm"
+            android:paddingBottom="10mm"
+            android:visibility="visible"
+            app:tv_selectedItemIsCentered="true"
+            app:tv_verticalSpacingWithMargins="10mm" />
+
+        <View
+            android:layout_width="1mm"
+            android:layout_height="match_parent"
+            android:layout_gravity="center_horizontal"
+            android:background="@color/color_FFFFFF" />
+
+        <com.owen.tvrecyclerview.widget.TvRecyclerView
+            android:id="@+id/mSettingGroupView"
+            android:layout_width="180mm"
+            android:layout_height="match_parent"
+            android:background="@color/color_CCFFFFFF"
+            android:gravity="center"
+            android:paddingLeft="5mm"
+            android:paddingTop="10mm"
+            android:paddingRight="5mm"
+            android:paddingBottom="10mm"
+            android:visibility="visible"
+            app:tv_selectedItemIsCentered="true"
+            app:tv_verticalSpacingWithMargins="10mm" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/tvChannel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="right"
+        android:layout_marginTop="30mm"
+        android:layout_marginRight="60mm"
+        android:background="@drawable/shape_live_channel_num"
+        android:gravity="center"
+        android:paddingTop="5mm"
+        android:paddingBottom="5mm"
+        android:textColor="@android:color/white"
+        android:textSize="36mm"
+        android:textStyle="bold"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/tvTime"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="right"
+        android:layout_marginTop="@dimen/vs_10"
+        android:layout_marginEnd="@dimen/vs_10"
+        android:layout_marginRight="@dimen/vs_10"
+        android:background="@android:color/transparent"
+        android:gravity="center"
+        android:textColor="@android:color/white"
+        android:textSize="22mm"
+        android:visibility="gone" />
+    <TextView
+        android:id="@+id/tvNetSpeed"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|right"
+        android:layout_marginBottom="5mm"
+        android:layout_marginRight="5mm"
+        android:background="@android:color/transparent"
+        android:gravity="center"
+        android:textColor="@android:color/white"
+        android:textSize="22mm"
+        android:visibility="gone" />
+</FrameLayout>
