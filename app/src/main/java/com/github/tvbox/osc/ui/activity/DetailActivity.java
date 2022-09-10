@@ -1,12 +1,21 @@
 package com.github.tvbox.osc.ui.activity;
 
+import android.app.PendingIntent;
+import android.app.PictureInPictureParams;
+import android.app.RemoteAction;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.graphics.Color;
+import android.graphics.drawable.Icon;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.text.Html;
 import android.text.TextUtils;
+import android.view.KeyEvent;
 import android.view.View;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
@@ -15,6 +24,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.RequiresApi;
 import androidx.lifecycle.Observer;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.DiffUtil;
@@ -41,6 +51,7 @@ import com.github.tvbox.osc.ui.adapter.SeriesFlagAdapter;
 import com.github.tvbox.osc.ui.dialog.QuickSearchDialog;
 import com.github.tvbox.osc.ui.dialog.SelectDialog;
 import com.github.tvbox.osc.ui.fragment.PlayerFragment;
+import com.github.tvbox.osc.util.AppManager;
 import com.github.tvbox.osc.util.DefaultConfig;
 import com.github.tvbox.osc.util.FastClickCheckUtil;
 import com.github.tvbox.osc.util.HawkConfig;
@@ -121,8 +132,14 @@ public class DetailActivity extends BaseActivity {
     private SelectDialog<Integer> thirdPlayerDialog;
     private Handler mHandler = new Handler();
     private View currentSeriesGroupView;
+    private boolean originalFullScreen = false;
+    private boolean wasInPIPMode = false;
+    private BroadcastReceiver pipActionReceiver;
 
     private static final int DETAIL_PLAYER_FRAME_ID = 9999999;
+    private static final int PIP_BOARDCAST_ACTION_PREV = 0;
+    private static final int PIP_BOARDCAST_ACTION_PLAYPAUSE = 1;
+    private static final int PIP_BOARDCAST_ACTION_NEXT = 2;
 
     public VodInfo getVodInfo() {
         return vodInfo;
@@ -516,29 +533,19 @@ public class DetailActivity extends BaseActivity {
 
     private List<Runnable> pauseRunnable = null;
 
-    public void jumpToPlay(boolean shouldOpenActivity, boolean newSource, PlayerFragment.ParserCallback callback) {
+    public void jumpToPlay(boolean shouldFullScreen, boolean newSource, PlayerFragment.ParserCallback callback) {
         if (vodInfo != null && vodInfo.seriesMap.get(vodInfo.playFlag).size() > 0) {
-            if(shouldOpenActivity) {
-                getSupportFragmentManager().beginTransaction().remove(playerFragment).commit();
-                if(newSource) {
-                    //保存历史
-                    insertVod(sourceKey, vodInfo);
-                    playerFragment.destroy();
-                    playerFragment = new PlayerFragment();
-                } else {
-                    playerFragment.getVodController().enableController(true);
-                }
-                Bundle bundle = new Bundle();
-                bundle.putBoolean("newSource", newSource);
-                bundle.putString("sourceKey", sourceKey);
-                bundle.putSerializable("VodInfo", vodInfo);
-                jumpActivity(PlayActivity.class, bundle);
+            if(playerFragment == null)
+                playerFragment = new PlayerFragment();
+            if(newSource) {
+                //保存历史
+                insertVod(sourceKey, vodInfo);
+                playerFragment.initData(vodInfo, sourceKey, callback);
+            }
+            if(shouldFullScreen) {
+                playerFragment.getVodController().enableController(true);
+                playerFragment.getVodController().startFullScreen();
                 sendScreenChange(true);
-            } else {
-                if(newSource)
-                    insertVod(sourceKey, vodInfo);
-                if(playerFragment != null)
-                    playerFragment.initData(vodInfo, sourceKey, callback);
             }
         }
     }
@@ -892,6 +899,19 @@ public class DetailActivity extends BaseActivity {
     }
 
     @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        if(playerFragment.getVodController().isFullScreen()) {
+            VodController controller = playerFragment.getVodController();
+            if (event != null && controller != null) {
+                if (controller.onKeyEvent(event)) {
+                    return true;
+                }
+            }
+        }
+        return super.dispatchKeyEvent(event);
+    }
+
+    @Override
     protected void onDestroy() {
         super.onDestroy();
         try {
@@ -925,9 +945,14 @@ public class DetailActivity extends BaseActivity {
             insertPlayerFragment();
         }
         VodController controller = playerFragment.getVodController();
-        if(controller != null) {
-            controller.enableController(false);
-            controller.hideLocker();
+        if(controller != null && wasInPIPMode) {
+            wasInPIPMode = false;
+            if (originalFullScreen) {
+                controller.enableController(true);
+            } else {
+                controller.stopFullScreen();
+                controller.enableController(false);
+            }
         }
         VideoView videoView = playerFragment.getVideoView();
         if (videoView != null) {
@@ -937,8 +962,76 @@ public class DetailActivity extends BaseActivity {
     }
 
     @Override
+    protected void onUserLeaveHint() {
+        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && playerFragment.getVideoView().getCurrentPlayState() != VideoView.STATE_PAUSED) {
+            try {
+                originalFullScreen = playerFragment.getVodController().isFullScreen();
+                playerFragment.getVodController().startFullScreen();
+                List<RemoteAction> actions = new ArrayList<>();
+                actions.add(generateRemoteAction(android.R.drawable.ic_media_previous, PIP_BOARDCAST_ACTION_PREV, "上一集", "播放上一集"));
+                actions.add(generateRemoteAction(android.R.drawable.ic_media_play,PIP_BOARDCAST_ACTION_PLAYPAUSE, "播放/暂停", "播放或者暂停"));
+                actions.add(generateRemoteAction(android.R.drawable.ic_media_next,PIP_BOARDCAST_ACTION_NEXT, "下一集", "播放下一集"));
+                PictureInPictureParams params = new PictureInPictureParams.Builder()
+                        .setActions(actions).build();
+                enterPictureInPictureMode(params);
+                playerFragment.getVodController().enableController(false);
+            }catch (Exception ex) {
+
+            }
+        }
+        super.onUserLeaveHint();
+    }
+
+    @RequiresApi(api = Build.VERSION_CODES.O)
+    private RemoteAction generateRemoteAction(int iconResId, int actionCode, String title, String desc) {
+        final PendingIntent intent =
+                PendingIntent.getBroadcast(
+                        DetailActivity.this,
+                        actionCode,
+                        new Intent("PIP_VOD_CONTROL").putExtra("action", actionCode),
+                        0);
+        final Icon icon = Icon.createWithResource(DetailActivity.this, iconResId);
+        return (new RemoteAction(icon, title, desc, intent));
+    }
+
+    @Override
+    public void onPictureInPictureModeChanged(boolean isInPictureInPictureMode) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode);
+        if (isInPictureInPictureMode) {
+            pipActionReceiver = new BroadcastReceiver() {
+
+                @Override
+                public void onReceive(Context context, Intent intent) {
+                    if(intent == null || !intent.getAction().equals("PIP_VOD_CONTROL")
+                            || playerFragment == null || playerFragment.getVodController() == null)
+                        return;
+
+                    VodController controller = playerFragment.getVodController();
+                    int currentStatus = intent.getIntExtra("action",1);
+                    if(currentStatus == PIP_BOARDCAST_ACTION_PREV){
+                        playerFragment.playPrevious();
+                    } else if(currentStatus == PIP_BOARDCAST_ACTION_PLAYPAUSE) {
+                        controller.togglePlay();
+                    } else if(currentStatus == PIP_BOARDCAST_ACTION_NEXT) {
+                        playerFragment.playNext();
+                    }
+                }
+            };
+            registerReceiver(pipActionReceiver, new IntentFilter("PIP_VOD_CONTROL"));
+
+        } else {
+            unregisterReceiver(pipActionReceiver);
+            pipActionReceiver = null;
+        }
+    }
+
+    @Override
     protected void onPause() {
         super.onPause();
+        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && isInPictureInPictureMode()) {
+            wasInPIPMode = true;
+            return;
+        }
         if(playerFragment != null) {
             VideoView videoView = playerFragment.getVideoView();
             if (videoView != null) {
@@ -950,6 +1043,11 @@ public class DetailActivity extends BaseActivity {
     @Override
     public void onBackPressed() {
 
+        if(playerFragment.getVodController().isFullScreen()) {
+            playerFragment.getVodController().enableController(false);
+            playerFragment.getVodController().stopFullScreen();
+            return;
+        }
         if(thirdPlayerDialog != null) {
             thirdPlayerDialog.dismiss();
             thirdPlayerDialog = null;
@@ -966,6 +1064,10 @@ public class DetailActivity extends BaseActivity {
             playerFragment.destroy();
             playerFragment = null;
         }
+        AppManager.getInstance().finishActivity(this);
+        Intent intent = new Intent(this,AppManager.getInstance().currentActivity().getClass());
+        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        startActivity(intent);
         super.onBackPressed();
     }
 }

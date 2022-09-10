@@ -132,6 +132,7 @@ public class VodController extends BaseController {
     TextView btnHint;
     ImageView lockerLeft;
     ImageView lockerRight;
+    ImageView tvBack;
 
     private boolean shouldShowBottom = true;
     private boolean shouldShowLoadingSpeed = Hawk.get(HawkConfig.DISPLAY_LOADING_SPEED, true);
@@ -190,6 +191,7 @@ public class VodController extends BaseController {
         btnHint = findViewById(R.id.play_btn_hint);
         lockerLeft = findViewById(R.id.play_screen_lock_left);
         lockerRight = findViewById(R.id.play_screen_lock_right);
+        tvBack = findViewById(R.id.tv_back);
 
         mGridView.setLayoutManager(new V7LinearLayoutManager(getContext(), 0, false));
 
@@ -466,6 +468,17 @@ public class VodController extends BaseController {
                 toggleLockController();
             }
         });
+        if(Hawk.get(HawkConfig.TV_TYPE, 0) == 0) {
+            tvBack.setVisibility(GONE);
+        } else {
+            tvBack.setOnClickListener(new OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    enableController(false);
+                    stopFullScreen();
+                }
+            });
+        }
         init3rdPlayerButton();
     }
 
@@ -487,6 +500,10 @@ public class VodController extends BaseController {
         this.shouldShowBottom = enable;
         this.mPlayTitle.setVisibility(enable ? VISIBLE : GONE);
         this.tvDate.setVisibility(enable ? VISIBLE : GONE );
+        if(!enable) {
+            hideLocker();
+            hideBottom();
+        }
         setDoubleTapTogglePlayEnabled(enable);
         setGestureEnabled(enable);
     }
@@ -934,6 +951,10 @@ public class VodController extends BaseController {
         if (isBottomVisible()) {
             if(event.getKeyCode() != KeyEvent.KEYCODE_BACK)
                 showBtnHint(this.findFocus());
+            else if(Hawk.get(HawkConfig.TV_TYPE, 0) == 0) {
+                hideBottom();
+                return true;
+            }
             mHandler.removeCallbacks(hideLockerRunnable);
             mHandler.removeCallbacks(mHideBottomRunnable);
             mHandler.postDelayed(mHideBottomRunnable, 10000);
@@ -967,6 +988,26 @@ public class VodController extends BaseController {
                     return true;
                 }
             }
+            if(event.getKeyCode() == KeyEvent.KEYCODE_BACK) {
+                if(isControllerLock) {
+                    toggleLockController();
+                    return true;
+                }
+                if(isFullScreen()) {
+                    stopFullScreen();
+                    return true;
+                }
+            }
+        }
+        if(playerFragment.getVodController().isFullScreen()) {
+            if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN ||
+                    keyCode == KeyEvent.KEYCODE_DPAD_DOWN ||
+                    keyCode == KeyEvent.KEYCODE_DPAD_LEFT ||
+                    keyCode == KeyEvent.KEYCODE_DPAD_RIGHT ||
+                    keyCode == KeyEvent.KEYCODE_DPAD_CENTER ||
+                    keyCode == KeyEvent.KEYCODE_ENTER) {
+                return true;
+            }
         }
         return super.dispatchKeyEvent(event);
     }
@@ -990,6 +1031,22 @@ public class VodController extends BaseController {
             hideBottom();
         }
         return true;
+    }
+
+    @Override
+    public boolean startFullScreen() {
+        return super.startFullScreen();
+    }
+
+    @Override
+    public boolean stopFullScreen() {
+        hideBottom();
+        hideLocker();
+        return super.stopFullScreen();
+    }
+
+    public boolean isFullScreen() {
+        return mControlWrapper.isFullScreen();
     }
 
     @Override
