@@ -44,7 +44,6 @@ import com.github.tvbox.osc.event.RefreshEvent;
 import com.github.tvbox.osc.picasso.RoundTransformation;
 import com.github.tvbox.osc.player.controller.VodController;
 import com.github.tvbox.osc.server.ControlManager;
-import com.github.tvbox.osc.server.WebSocketServer;
 import com.github.tvbox.osc.ui.adapter.SelectDialogAdapter;
 import com.github.tvbox.osc.ui.adapter.SeriesAdapter;
 import com.github.tvbox.osc.ui.adapter.SeriesFlagAdapter;
@@ -56,6 +55,7 @@ import com.github.tvbox.osc.util.DefaultConfig;
 import com.github.tvbox.osc.util.FastClickCheckUtil;
 import com.github.tvbox.osc.util.HawkConfig;
 import com.github.tvbox.osc.util.MD5;
+import com.github.tvbox.osc.util.PIPHelper;
 import com.github.tvbox.osc.util.PlayerHelper;
 import com.github.tvbox.osc.viewmodel.SourceViewModel;
 import com.google.gson.Gson;
@@ -457,13 +457,6 @@ public class DetailActivity extends BaseActivity {
         setLoadSir(llLayout);
     }
 
-    private void sendScreenChange(boolean isFullscreen) {
-        JsonObject jsonObject = new JsonObject();
-        jsonObject.addProperty("type", "detail");
-        jsonObject.addProperty("fullscreen", isFullscreen);
-        ControlManager.get().getSocketServer().sendToAll(jsonObject);
-    }
-
     private interface ThirdPlayerSelectDialogCallback {
         void onSelected(int selectedType);
     }
@@ -543,9 +536,7 @@ public class DetailActivity extends BaseActivity {
                 playerFragment.initData(vodInfo, sourceKey, callback);
             }
             if(shouldFullScreen) {
-                playerFragment.getVodController().enableController(true);
                 playerFragment.getVodController().startFullScreen();
-                sendScreenChange(true);
             }
         }
     }
@@ -694,6 +685,7 @@ public class DetailActivity extends BaseActivity {
                         ControlManager.get().getSocketServer().sendToAll(updateNotice);
                         // startQuickSearch();
                     } else {
+                        tvQuickSearch.callOnClick();
                         mGridViewFlag.setVisibility(View.GONE);
                         mGridView.setVisibility(View.GONE);
                         tvPlay.setVisibility(View.GONE);
@@ -947,32 +939,40 @@ public class DetailActivity extends BaseActivity {
         VodController controller = playerFragment.getVodController();
         if(controller != null && wasInPIPMode) {
             wasInPIPMode = false;
+//            mHandler.postDelayed(new Runnable() {
+//                @Override
+//                public void run() {
+//                    mGridView.invalidate();
+//                    seriesFlagAdapter.notifyDataSetChanged();
+//                    seriesGroupAdapter.notifyDataSetChanged();
+//                }
+//            }, 5000);
             if (originalFullScreen) {
                 controller.enableController(true);
             } else {
                 controller.stopFullScreen();
-                controller.enableController(false);
             }
         }
         VideoView videoView = playerFragment.getVideoView();
         if (videoView != null) {
             videoView.resume();
         }
-        sendScreenChange(false);
     }
 
     @Override
+    @RequiresApi(api = Build.VERSION_CODES.O)
     protected void onUserLeaveHint() {
         if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && playerFragment.getVideoView().getCurrentPlayState() != VideoView.STATE_PAUSED) {
             try {
                 originalFullScreen = playerFragment.getVodController().isFullScreen();
                 playerFragment.getVodController().startFullScreen();
                 List<RemoteAction> actions = new ArrayList<>();
-                actions.add(generateRemoteAction(android.R.drawable.ic_media_previous, PIP_BOARDCAST_ACTION_PREV, "上一集", "播放上一集"));
-                actions.add(generateRemoteAction(android.R.drawable.ic_media_play,PIP_BOARDCAST_ACTION_PLAYPAUSE, "播放/暂停", "播放或者暂停"));
-                actions.add(generateRemoteAction(android.R.drawable.ic_media_next,PIP_BOARDCAST_ACTION_NEXT, "下一集", "播放下一集"));
+                actions.add(PIPHelper.generateRemoteAction(this, android.R.drawable.ic_media_previous, PIP_BOARDCAST_ACTION_PREV, "上一集", "播放上一集"));
+                actions.add(PIPHelper.generateRemoteAction(this, android.R.drawable.ic_media_play,PIP_BOARDCAST_ACTION_PLAYPAUSE, "播放/暂停", "播放或者暂停"));
+                actions.add(PIPHelper.generateRemoteAction(this, android.R.drawable.ic_media_next,PIP_BOARDCAST_ACTION_NEXT, "下一集", "播放下一集"));
                 PictureInPictureParams params = new PictureInPictureParams.Builder()
-                        .setActions(actions).build();
+                        .setActions(actions)
+                .build();
                 enterPictureInPictureMode(params);
                 playerFragment.getVodController().enableController(false);
             }catch (Exception ex) {
@@ -980,18 +980,6 @@ public class DetailActivity extends BaseActivity {
             }
         }
         super.onUserLeaveHint();
-    }
-
-    @RequiresApi(api = Build.VERSION_CODES.O)
-    private RemoteAction generateRemoteAction(int iconResId, int actionCode, String title, String desc) {
-        final PendingIntent intent =
-                PendingIntent.getBroadcast(
-                        DetailActivity.this,
-                        actionCode,
-                        new Intent("PIP_VOD_CONTROL").putExtra("action", actionCode),
-                        0);
-        final Icon icon = Icon.createWithResource(DetailActivity.this, iconResId);
-        return (new RemoteAction(icon, title, desc, intent));
     }
 
     @Override
@@ -1028,9 +1016,11 @@ public class DetailActivity extends BaseActivity {
     @Override
     protected void onPause() {
         super.onPause();
-        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && isInPictureInPictureMode()) {
-            wasInPIPMode = true;
-            return;
+        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            if(isInPictureInPictureMode()) {
+                wasInPIPMode = true;
+                return;
+            }
         }
         if(playerFragment != null) {
             VideoView videoView = playerFragment.getVideoView();
